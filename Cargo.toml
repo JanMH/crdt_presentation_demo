@@ -1,0 +1,6 @@
+
+[workspace]
+members = [
+    "crdt",
+    "crdt-js"
+]
