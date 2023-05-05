@@ -48,6 +48,12 @@ impl TextBoxSynchronizer {
         self.cursor_pos = self.text.get_clock().to_s4vector();
         serde_json::to_string(&op).unwrap()
     }
+    
+    pub fn remove_at_cursor(&mut self) -> String {
+        let op = self.text.local_delete(self.cursor_pos);
+        self.cursor_pos = self.text.get_clock().to_s4vector();
+        serde_json::to_string(&op).unwrap()
+    }
 
     pub fn apply_remote_operation(&mut self, operation: &str) {
         let op: Operation = serde_json::de::from_str(operation).unwrap();

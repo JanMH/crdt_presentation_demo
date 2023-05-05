@@ -17,7 +17,10 @@ impl<T: Clone + Default> RGA<T> {
         nodes.insert(S4Vector::root(), n);
         RGA { nodes }
     }
-    pub fn insert(&mut self, insert_after: S4Vector, operation_clock: S4Vector, object: T) {
+    pub fn insert(&mut self, insert_after: S4Vector, operation_clock: S4Vector, object: T) -> bool {
+        if !self.nodes.contains_key(&insert_after) {
+            return false;
+        }
         let mut ref_pos = insert_after;
         while let Some(link) = self.nodes[&ref_pos].link {
             if link < operation_clock {
@@ -38,6 +41,15 @@ impl<T: Clone + Default> RGA<T> {
                 link,
             },
         );
+        true
+    }
+
+    pub fn delete(&mut self, element: S4Vector, operation_ts: S4Vector) -> bool {
+        if let Some(el) = self.nodes.get_mut(&element) {
+            el.delete_clock = Some(operation_ts);
+            return true;
+        }
+        false
     }
 
     pub fn iter(&self) -> SnapshotIter<'_, T> {
@@ -99,6 +111,39 @@ fn test_simple_insertion() {
     assert_eq!(
         rga.iter().map(|(_, c)| c.unwrap()).collect::<String>(),
         "hello".to_owned()
+    );
+}
+
+#[test]
+fn test_delete() {
+    use super::clocks::VectorClock;
+
+    let mut rga = RGA::new();
+    let mut pos = S4Vector::root();
+
+    let mut clk = VectorClock::new(0);
+    clk.increase();
+    rga.insert(pos, clk.to_s4vector(), 'a');
+    pos = clk.to_s4vector();
+
+    clk.increase();
+    let to_delete = clk.to_s4vector();
+    rga.insert(pos, clk.to_s4vector(), 'b');
+    pos = clk.to_s4vector();
+
+    clk.increase();
+    rga.insert(pos, clk.to_s4vector(), 'b');
+    pos = clk.to_s4vector();
+
+    clk.increase();
+    rga.delete(to_delete, clk.to_s4vector());
+
+    clk.increase();
+    rga.insert(pos, clk.to_s4vector(), 'c');
+
+    assert_eq!(
+        rga.iter().filter(|(_,c)| c.is_some()).map(|(_, c)| c.unwrap()).collect::<String>(),
+        "abc".to_owned()
     );
 }
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     clocks::{S4Vector, VectorClock},
-    rga::{RGA, SnapshotIter},
+    rga::{SnapshotIter, RGA},
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -10,17 +10,18 @@ pub struct InsertOperation {
     character: char,
     insert_after: [u32; 4],
     insert_position: [u32; 4],
-    op_clock: Vec<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum OperationData {
     Insert(InsertOperation),
+    Delete([u32; 4]),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Operation {
     sent_by: usize,
+    op_clock: Vec<u32>,
     data: OperationData,
 }
 
@@ -54,31 +55,36 @@ impl SynchronizedText {
             .insert(insert_after, self.clock.to_s4vector(), character);
         Operation {
             sent_by: self.clock.id(),
+            op_clock: self.clock.clock_values().to_vec(),
             data: OperationData::Insert(InsertOperation {
                 character,
                 insert_after: insert_after.to_array(),
                 insert_position: self.clock.to_s4vector().to_array(),
-                op_clock: self.clock.cloned_values(),
             }),
         }
     }
 
     pub fn remote_insert(
         &mut self,
-        sent_by: usize,
-        sent_clock_values: &[u32],
         operation_position: S4Vector,
         insert_after: S4Vector,
         character: char,
-    ) -> Result<(), String> {
-        if !self.is_ready_to_receive(sent_by, sent_clock_values) {
-            // Normally we would enqueue this operation and wait until the previous values would arrive
-            return Err("Not ready to receive this values".into());
-        }
+    ) {
         self.rga.insert(insert_after, operation_position, character);
-        self.clock.merge_remote(sent_clock_values);
+    }
 
-        Ok(())
+    pub fn local_delete(&mut self, delete_position: S4Vector) -> Operation {
+        self.clock.increase();
+        self.rga.delete(delete_position, self.clock.to_s4vector());
+        Operation {
+            sent_by: self.clock.id(),
+            op_clock: self.clock.clock_values().to_vec(),
+            data: OperationData::Delete(delete_position.to_array()),
+        }
+    }
+
+    pub fn remote_delete(&mut self, operation_ts: S4Vector, delete_position: S4Vector) {
+        self.rga.delete(delete_position, operation_ts);
     }
 
     pub fn is_ready_to_receive(&self, sent_by: usize, sent_clock_values: &[u32]) -> bool {
@@ -104,15 +110,22 @@ impl SynchronizedText {
     }
 
     pub fn apply_operation(&mut self, operation: Operation) -> Result<(), String> {
+        let clock = VectorClock::from_parts(operation.sent_by, operation.op_clock.clone());
+        if !self.is_ready_to_receive(operation.sent_by, &operation.op_clock) {
+            // Normally we would enqueue this operation and wait until the previous values would arrive
+            return Err("Not ready to receive this values".into());
+        }
+
         match operation.data {
-            OperationData::Insert(op) => self.remote_insert(
-                operation.sent_by,
-                &op.op_clock,
-                op.insert_position.into(),
-                op.insert_after.into(),
-                op.character,
-            )?,
+            OperationData::Insert(data) => self.remote_insert(
+                data.insert_position.into(),
+                data.insert_after.into(),
+                data.character,
+            ),
+            OperationData::Delete(data) => self.remote_delete(clock.to_s4vector(), data.into()),
         };
+        self.clock.merge_remote(&operation.op_clock);
+
         Ok(())
     }
 }

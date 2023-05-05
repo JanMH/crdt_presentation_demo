@@ -73,6 +73,13 @@ impl VectorClock {
         }
     }
 
+    pub fn from_parts(site_id: usize, clock: Vec<u32>) ->VectorClock {
+        VectorClock{
+            site_id,
+            clock
+        }
+    }
+
     pub fn id(&self) -> usize {
         self.site_id
     }
@@ -103,10 +110,11 @@ impl VectorClock {
         self.clock.get(s_id).copied().unwrap_or(0)
     }
 
-    pub fn cloned_values(&self) -> Vec<u32> {
-        self.clock.clone()
+    pub fn clock_values(&self) -> &[u32] {
+        &self.clock
     }
 }
+
 
 #[test]
 fn test_merge_clocks() {
