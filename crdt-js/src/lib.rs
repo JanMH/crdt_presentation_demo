@@ -30,7 +30,6 @@ pub struct TextBoxSynchronizer {
 }
 #[wasm_bindgen]
 impl TextBoxSynchronizer {
-
     pub fn new(id: usize) -> TextBoxSynchronizer {
         TextBoxSynchronizer {
             text: SynchronizedText::new(id),
@@ -38,9 +37,8 @@ impl TextBoxSynchronizer {
         }
     }
 
-    pub fn get_text(&self)-> String {
+    pub fn get_text(&self) -> String {
         self.text.get_text()
-
     }
 
     pub fn insert_at_cursor(&mut self, character: char) -> String {
@@ -48,11 +46,14 @@ impl TextBoxSynchronizer {
         self.cursor_pos = self.text.get_clock().to_s4vector();
         serde_json::to_string(&op).unwrap()
     }
-    
-    pub fn remove_at_cursor(&mut self) -> String {
+
+    pub fn remove_at_cursor(&mut self) -> Option<String> {
+        if self.cursor_pos == S4Vector::root() {
+            return None;
+        }
         let op = self.text.local_delete(self.cursor_pos);
         self.cursor_pos = self.text.get_clock().to_s4vector();
-        serde_json::to_string(&op).unwrap()
+        Some(serde_json::to_string(&op).unwrap())
     }
 
     pub fn apply_remote_operation(&mut self, operation: &str) {
@@ -67,22 +68,25 @@ impl TextBoxSynchronizer {
                 result += 1;
             }
             if pos == self.cursor_pos {
-                break
+                break;
             }
         }
         result
     }
 
     pub fn set_absolute_cursor_pos(&mut self, pos: usize) {
+        if pos == 0 {
+            self.cursor_pos = S4Vector::root();
+            return;
+        }
         let mut current_absolute_pos = 0;
-        self.cursor_pos = S4Vector::root();
         for (s4_pos, c) in self.text.iter() {
             if c.is_some() {
                 current_absolute_pos += 1;
             }
             if pos == current_absolute_pos {
                 self.cursor_pos = s4_pos;
-                break
+                break;
             }
         }
     }

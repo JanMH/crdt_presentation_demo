@@ -1,12 +1,10 @@
 import * as wasm from "crdt";
+const host = 'localhost'
+const port = 3000
+const baseUrl = `http://${host}:${port}`
 
-let textboxText1 = wasm.TextBoxSynchronizer.new(0)
-
-let textboxText2 = wasm.TextBoxSynchronizer.new(1)
-
-let textbox1 = document.getElementById('area1')
-let textbox2 = document.getElementById('area2')
-
+let textarea = document.getElementById('area')
+connectTextarea(textarea)
 
 
 function applyOp(text, textbox, op) {
@@ -16,52 +14,47 @@ function applyOp(text, textbox, op) {
     textbox.setSelectionRange(cursorPos, cursorPos)
 }
 
+async function connectTextarea(textarea) {
+    textarea.value = "Connecting..."
+    let synchronizer = await connect()
+    textarea.value = ""
+    synchronizer.socket.addEventListener('message', (msg) => {
+        console.log(msg)
+        applyOp(synchronizer.text, textarea, msg.data)
+    })
 
 
-textbox1.addEventListener('keydown', (event) => {
-    textboxText1.set_absolute_cursor_pos(textbox1.selectionStart)
+    textarea.addEventListener('keydown', (event) => {
+        synchronizer.text.set_absolute_cursor_pos(textarea.selectionStart)
 
-    let op
-    if (event.key == 'Enter') {
-        op =  textboxText1.insert_at_cursor("\n")
-    }
-    else if (event.key == 'Backspace') {
-        if(textbox1.selectionStart == 0) return
-        op = textboxText1.remove_at_cursor()
-    }
-    else if (event.key.length == 1) {
-        op =  textboxText1.insert_at_cursor(event.key)
-    }
-    else return
-    applyOp(textboxText2, textbox2, op)
-})
+        let op
+        if (event.key == 'Enter') {
+            op = synchronizer.text.insert_at_cursor("\n")
+        }
+        else if (event.key == 'Backspace') {
+            op = synchronizer.text.remove_at_cursor()
+        }
+        else if (event.key.length == 1) {
+            op = synchronizer.text.insert_at_cursor(event.key)
+        }
+        else return
+        
+        if(op == undefined) return
 
-textbox2.addEventListener('keydown', (event) => {
-    textboxText2.set_absolute_cursor_pos(textbox2.selectionStart)
+        synchronizer.socket.send(op)
 
-    let op
-    if (event.key == 'Enter') {
-        op =  textboxText2.insert_at_cursor("\n")
-    }
-    else if (event.key == 'Backspace') {
-        if(textbox2.selectionStart == 0) return
-        op = textboxText2.remove_at_cursor()
-    }
-    else if (event.key.length == 1) {
-        op =  textboxText2.insert_at_cursor(event.key)
-    }
-    else return
-    applyOp(textboxText1, textbox1, op)
-})
+    })
+}
 
-const domain = "http://localhost:3000"
+
 async function connect() {
-    let id = await fetch(`${domain}/register`, {method: 'POST'}).then(v => v.text)
-    let socket = new WebSocket(`${domain}/data-stream/${id}`)
+    let id = await (fetch(`${baseUrl}/register`, { method: 'POST' }).then(v => v.text()))
+    let socket = new WebSocket(`ws://${host}:${port}/data-stream/${id}`)
     let promise = new Promise((resolve) => socket.onopen = () => resolve(socket))
+    await promise
     return {
         id,
-        socket: await promise,
+        socket,
         text: wasm.TextBoxSynchronizer.new(id)
     }
 }
