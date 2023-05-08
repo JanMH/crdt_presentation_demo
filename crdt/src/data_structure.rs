@@ -5,24 +5,24 @@ use crate::{
     rga::{SnapshotIter, RGA},
 };
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InsertOperation {
-    character: char,
-    insert_after: [u32; 4],
-    insert_position: [u32; 4],
+    pub character: char,
+    pub insert_after: [u32; 4],
+    pub insert_position: [u32; 4],
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum OperationData {
     Insert(InsertOperation),
     Delete([u32; 4]),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Operation {
-    sent_by: usize,
-    op_clock: Vec<u32>,
-    data: OperationData,
+    pub sent_by: usize,
+    pub op_clock: Vec<u32>,
+    pub data: OperationData,
 }
 
 pub struct SynchronizedText {
@@ -109,20 +109,22 @@ impl SynchronizedText {
         self.rga.iter()
     }
 
-    pub fn apply_operation(&mut self, operation: Operation) -> Result<(), String> {
+    pub fn apply_operation(&mut self, operation: &Operation) -> Result<(), String> {
         let clock = VectorClock::from_parts(operation.sent_by, operation.op_clock.clone());
         if !self.is_ready_to_receive(operation.sent_by, &operation.op_clock) {
             // Normally we would enqueue this operation and wait until the previous values would arrive
             return Err("Not ready to receive this values".into());
         }
 
-        match operation.data {
+        match &operation.data {
             OperationData::Insert(data) => self.remote_insert(
                 data.insert_position.into(),
                 data.insert_after.into(),
                 data.character,
             ),
-            OperationData::Delete(data) => self.remote_delete(clock.to_s4vector(), data.into()),
+            OperationData::Delete(data) => {
+                self.remote_delete(clock.to_s4vector(), data.clone().into())
+            }
         };
         self.clock.merge_remote(&operation.op_clock);
 
@@ -154,13 +156,55 @@ mod tests {
         }
 
         for op in text1_ops {
-            sync2.apply_operation(op).expect("No causality should fail");
+            sync2
+                .apply_operation(&op)
+                .expect("No causality should fail");
         }
         for op in text2_ops {
-            sync1.apply_operation(op).expect("No causality should fail");
+            sync1
+                .apply_operation(&op)
+                .expect("No causality should fail");
         }
 
         assert_eq!(sync1.get_text(), "hello world");
         assert_eq!(sync2.get_text(), "hello world");
+    }
+
+    #[test]
+    fn failing_example() {
+        use OperationData::*;
+        let operations = vec![
+            Operation {
+                sent_by: 5,
+                op_clock: [0, 0, 0, 0, 0, 1].to_vec(),
+                data: Insert(InsertOperation {
+                    character: 'q',
+                    insert_after: [0, 0, 0, 0],
+                    insert_position: [0, 5, 1, 1],
+                }),
+            },
+            Operation {
+                sent_by: 1,
+                op_clock: [0, 1].to_vec(),
+                data: Insert(InsertOperation {
+                    character: 'E',
+                    insert_after: [0, 0, 0, 0],
+                    insert_position: [0, 1, 3, 3],
+                }),
+            },
+        ];
+
+        let op_order_2 = vec![operations[1].clone(), operations[0].clone()];
+
+        let mut t1 = SynchronizedText::new(0);
+
+        let mut t2 = SynchronizedText::new(2);
+        for op in operations {
+            t1.apply_operation(&op).unwrap();
+        }
+        for op in &op_order_2 {
+            t2.apply_operation(op).unwrap();
+        }
+        assert_eq!(t1.get_text(), t2.get_text());
     }
 }

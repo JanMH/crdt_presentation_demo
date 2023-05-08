@@ -10,8 +10,8 @@ impl<T: Clone + Default> RGA<T> {
     pub fn new() -> RGA<T> {
         let mut nodes = HashMap::new();
         let n = Node {
-            object: T::default(),
-            delete_clock: None,
+            object: None,
+            update_clock: S4Vector::root(),
             link: None,
         };
         nodes.insert(S4Vector::root(), n);
@@ -36,8 +36,8 @@ impl<T: Clone + Default> RGA<T> {
         self.nodes.insert(
             operation_clock,
             Node {
-                object,
-                delete_clock: None,
+                object: Some(object),
+                update_clock: operation_clock,
                 link,
             },
         );
@@ -46,7 +46,8 @@ impl<T: Clone + Default> RGA<T> {
 
     pub fn delete(&mut self, element: S4Vector, operation_ts: S4Vector) -> bool {
         if let Some(el) = self.nodes.get_mut(&element) {
-            el.delete_clock = Some(operation_ts);
+            el.object = None;
+            el.update_clock = operation_ts;
             return true;
         }
         false
@@ -72,12 +73,7 @@ impl<T: Clone> Iterator for SnapshotIter<'_, T> {
         let next_link = self.nodes[&self.link].link?;
         self.link = next_link;
         let n = &self.nodes[&self.link];
-        let obj = if n.delete_clock.is_none() {
-            Some(n.object.clone())
-        } else {
-            None
-        };
-        Some((next_link, obj))
+        Some((next_link, n.object.clone()))
     }
 }
 
@@ -142,13 +138,16 @@ fn test_delete() {
     rga.insert(pos, clk.to_s4vector(), 'c');
 
     assert_eq!(
-        rga.iter().filter(|(_,c)| c.is_some()).map(|(_, c)| c.unwrap()).collect::<String>(),
+        rga.iter()
+            .filter(|(_, c)| c.is_some())
+            .map(|(_, c)| c.unwrap())
+            .collect::<String>(),
         "abc".to_owned()
     );
 }
 
 struct Node<T> {
-    object: T,
-    delete_clock: Option<S4Vector>,
+    object: Option<T>,
+    update_clock: S4Vector,
     link: Option<S4Vector>,
 }

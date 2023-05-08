@@ -2,5 +2,10 @@
 [workspace]
 members = [
     "crdt",
-    "crdt-js"
+    "crdt-js",
+    "fuzz-suite"
 ]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

@@ -19,7 +19,7 @@ async function connectTextarea(textarea) {
     let synchronizer = await connect()
     textarea.value = ""
     synchronizer.socket.addEventListener('message', (msg) => {
-        console.log(msg)
+        synchronizer.text.set_absolute_cursor_pos(textarea.selectionStart)
         applyOp(synchronizer.text, textarea, msg.data)
     })
 
@@ -42,14 +42,13 @@ async function connectTextarea(textarea) {
         if(op == undefined) return
 
         synchronizer.socket.send(op)
-
     })
 }
 
 
 async function connect() {
-    let id = await (fetch(`${baseUrl}/register`, { method: 'POST' }).then(v => v.text()))
-    let socket = new WebSocket(`ws://${host}:${port}/data-stream/${id}`)
+    let id = await (fetch(`/register`, { method: 'POST' }).then(v => v.text()))
+    let socket = new WebSocket("ws"+ document.location.origin.substring(4)  + `/data-stream/${id}`)
     let promise = new Promise((resolve) => socket.onopen = () => resolve(socket))
     await promise
     return {

@@ -58,7 +58,7 @@ impl TextBoxSynchronizer {
 
     pub fn apply_remote_operation(&mut self, operation: &str) {
         let op: Operation = serde_json::de::from_str(operation).unwrap();
-        self.text.apply_operation(op).unwrap();
+        self.text.apply_operation(&op).unwrap();
     }
 
     pub fn get_absolute_cursor_pos(&self) -> usize {

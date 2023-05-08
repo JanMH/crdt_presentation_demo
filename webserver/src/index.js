@@ -7,6 +7,7 @@ const app = express();
 
 
 app.use(cors())
+app.use(express.static('public'))
 
 // Set up a headless websocket server that prints any
 // events that come in.

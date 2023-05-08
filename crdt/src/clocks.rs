@@ -27,15 +27,15 @@ impl Ord for S4Vector {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.ssn < other.ssn {
             Ordering::Less
-        } else if other.ssn > self.ssn {
+        } else if self.ssn > other.ssn {
             Ordering::Greater
         } else if self.sum < other.sum {
             Ordering::Less
-        } else if other.sum > self.sum {
+        } else if self.sum > other.sum {
             Ordering::Greater
         } else if self.sid < other.sid {
             Ordering::Less
-        } else if other.sid > self.sid {
+        } else if self.sid > other.sid {
             Ordering::Greater
         } else {
             Ordering::Equal
@@ -73,11 +73,8 @@ impl VectorClock {
         }
     }
 
-    pub fn from_parts(site_id: usize, clock: Vec<u32>) ->VectorClock {
-        VectorClock{
-            site_id,
-            clock
-        }
+    pub fn from_parts(site_id: usize, clock: Vec<u32>) -> VectorClock {
+        VectorClock { site_id, clock }
     }
 
     pub fn id(&self) -> usize {
@@ -114,7 +111,6 @@ impl VectorClock {
         &self.clock
     }
 }
-
 
 #[test]
 fn test_merge_clocks() {
